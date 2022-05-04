@@ -1,0 +1,78 @@
+---
+- name: Install MacOS packages 
+  hosts: localhost
+  become: false
+  vars:
+    brew_cask_packages:
+      - sublime-text
+      - pycharm
+      - evernote
+    brew_packages:
+      - git
+      - python
+      - bat
+      - jq
+    python_modules:
+      - pandas
+      - numpy
+      - ntc_templates
+      - textfsm
+      - netaddr
+      - pylint
+      - virtualenv
+      - configparser 
+    install_homebrew_if_missing: true
+    upgrade_homebrew_packages: true
+
+
+pre-tasks:
+  - name: Ensuring homebrew is installed
+    stat:
+      path: /usr/local_bin/brew
+    register: homebrew_check
+
+  - name: Installing Homebrew
+    shell: /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+    when:
+      - not homebrew_check.stat.exists
+      - install_homebrew_if_missing
+
+tasks:
+  - name: Updating homebrew
+    homebrew:
+      update_homebrew: true
+    when: homebrew_check.stat.exists
+
+  - name: Upgrading homebrew packages
+    homebrew:
+      upgrade_all: "{{ upgrade_homebrew_packages }}"
+    register: result
+    until: result is successful
+    when: homebrew_check.stat.exists
+
+  - name: Installing homebrew cask packages
+    homebrew_cask:
+      name: "{{  brew_cask_packages }}"
+      state: present
+    register: result
+    until: result is successful
+    when: homebrew_check.stat.exists
+
+  - name: Installing homebrew packages
+    homebrew:
+      name: "{{ brew_packages }}"
+      state: present
+    register: result
+    until: result is successful
+    when: homebrew_check.stat.exists
+
+  - name: Installing python modules
+    pip:
+      name: "{{ item }}"
+      state: present
+    with_items: "{{ python_modules }}"
+
+
+
+
+
