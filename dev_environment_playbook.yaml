@@ -1,17 +1,17 @@
 ---
-- name: Install MacOS packages 
+- name: Ensure MacOS Dev PKGs are Installed
   hosts: localhost
   become: false
   vars:
     brew_cask_packages:
       - sublime-text
-      - pycharm
-      - evernote
+      - pycharm-ce
     brew_packages:
       - git
       - python
       - bat
       - jq
+      - gh
     python_modules:
       - pandas
       - numpy
@@ -24,55 +24,58 @@
     install_homebrew_if_missing: true
     upgrade_homebrew_packages: true
 
+  pre_tasks:
+    - name: Ensuring homebrew is installed
+      stat:
+        path: /usr/local/bin/brew      
+      register: homebrew_check
 
-pre-tasks:
-  - name: Ensuring homebrew is installed
-    stat:
-      path: /usr/local_bin/brew
-    register: homebrew_check
+    - name: Installing Homebrew
+      shell: /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
+      when:
+        - not homebrew_check.stat.exists
+        - install_homebrew_if_missinge
+  
+  tasks:
+    - name: Updating homebrew
+      homebrew:
+        update_homebrew: yes
+      when: homebrew_check.stat.exists
 
-  - name: Installing Homebrew
-    shell: /usr/bin/ruby -e "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/master/install)"
-    when:
-      - not homebrew_check.stat.exists
-      - install_homebrew_if_missing
+    - name: Upgrading homebrew packages
+      homebrew:
+        upgrade_all: yes
+      register: result
+      until: result is successful
+      when: homebrew_check.stat.exists
 
-tasks:
-  - name: Updating homebrew
-    homebrew:
-      update_homebrew: true
-    when: homebrew_check.stat.exists
+    - name: Installing homebrew cask packages
+      homebrew_cask:
+        name: "{{  brew_cask_packages }}"
+        state: present
+      register: result
+      until: result is successful
+      when: homebrew_check.stat.exists
 
-  - name: Upgrading homebrew packages
-    homebrew:
-      upgrade_all: "{{ upgrade_homebrew_packages }}"
-    register: result
-    until: result is successful
-    when: homebrew_check.stat.exists
+    - name: Installing homebrew packages
+      homebrew:
+        name: "{{ brew_packages }}"
+        state: present
+      register: result
+      until: result is successful
+      when: homebrew_check.stat.exists
 
-  - name: Installing homebrew cask packages
-    homebrew_cask:
-      name: "{{  brew_cask_packages }}"
-      state: present
-    register: result
-    until: result is successful
-    when: homebrew_check.stat.exists
+    - name: Installing python modules
+      pip:
+        name: "{{ item }}"
+        state: present
+      with_items: "{{ python_modules }}"
 
-  - name: Installing homebrew packages
-    homebrew:
-      name: "{{ brew_packages }}"
-      state: present
-    register: result
-    until: result is successful
-    when: homebrew_check.stat.exists
-
-  - name: Installing python modules
-    pip:
-      name: "{{ item }}"
-      state: present
-    with_items: "{{ python_modules }}"
-
-
-
-
+    - name: Setting up terminal configs
+      copy:
+        dest: ~/.inputrc
+        content: |
+          set completion-ignore-case on
+          set show-all-if-ambiguous on
+          TAB: menu-complete
 
